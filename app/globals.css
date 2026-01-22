@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-space-dark text-white min-h-screen;
+    background: radial-gradient(ellipse at top, #1e1b4b 0%, #0a0e27 50%, #000000 100%);
+    background-attachment: fixed;
+  }
+}
+
+/* Starfield background */
+.starfield {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.starfield::before,
+.starfield::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 
+    100px 100px white,
+    200px 150px white,
+    300px 50px white,
+    400px 200px white,
+    500px 100px white,
+    600px 250px white,
+    700px 80px white,
+    800px 180px white,
+    900px 220px white,
+    1000px 120px white,
+    1100px 300px white,
+    1200px 160px white,
+    50px 300px white,
+    150px 350px white,
+    250px 400px white,
+    350px 320px white,
+    450px 380px white,
+    550px 340px white,
+    650px 420px white,
+    750px 360px white,
+    850px 440px white,
+    950px 400px white;
+  animation: float 6s ease-in-out infinite;
+}
+
+.starfield::after {
+  width: 1px;
+  height: 1px;
+  box-shadow: 
+    120px 80px rgba(255, 255, 255, 0.5),
+    220px 120px rgba(255, 255, 255, 0.5),
+    320px 200px rgba(255, 255, 255, 0.5),
+    420px 60px rgba(255, 255, 255, 0.5),
+    520px 180px rgba(255, 255, 255, 0.5),
+    620px 140px rgba(255, 255, 255, 0.5),
+    720px 240px rgba(255, 255, 255, 0.5),
+    820px 100px rgba(255, 255, 255, 0.5),
+    920px 280px rgba(255, 255, 255, 0.5),
+    1020px 160px rgba(255, 255, 255, 0.5);
+  animation: float 8s ease-in-out infinite reverse;
+}
+
+/* Glow effects */
+.glow-button {
+  @apply transition-all duration-300;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.glow-button:hover {
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.6);
+  transform: translateY(-2px);
+}
+
+/* Hyperdrive warp animation */
+.warp-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  background: radial-gradient(ellipse at center, #0f172a 0%, #000000 100%);
+  overflow: hidden;
+  transition: opacity 0.5s ease-out;
+}
+
+.warp-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Starfield for warp effect */
+.warp-starfield {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  perspective: 500px;
+}
+
+.warp-star {
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+}
+
+/* Hyperdrive: stars zoom past */
+.warp-speed .warp-star {
+  animation: warp-zoom 0.8s linear infinite;
+}
+
+/* Decelerate: stars slow down */
+.warp-slow .warp-star {
+  animation: warp-slow-zoom 1.5s ease-out forwards;
+}
+
+@keyframes warp-zoom {
+  0% {
+    transform: translateZ(0) scale(0.5);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateZ(1500px) scale(3);
+    opacity: 0;
+  }
+}
+
+@keyframes warp-slow-zoom {
+  0% {
+    transform: translateZ(200px) scale(1.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translateZ(600px) scale(2);
+    opacity: 0;
+  }
+}
+
+/* Speed lines for intense hyperdrive effect */
+.warp-speed-lines {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.warp-speed-line {
+  position: absolute;
+  width: 200px;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(99, 102, 241, 0.8) 50%, 
+    transparent 100%);
+  transform-origin: center;
+  animation: speed-line 0.6s linear infinite;
+  filter: blur(1px);
+}
+
+@keyframes speed-line {
+  0% {
+    transform: translateX(-50vw) translateY(0) scaleX(0.5);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(150vw) translateY(0) scaleX(2);
+    opacity: 0;
+  }
+}
+
+/* Center glow effect */
+.warp-center-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, 
+    rgba(139, 92, 246, 0.4) 0%, 
+    rgba(99, 102, 241, 0.2) 30%, 
+    transparent 70%);
+  border-radius: 50%;
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.warp-glow-expand {
+  animation: glow-expand 1s ease-out forwards;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 1;
+  }
+}
+
+@keyframes glow-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(20);
+    opacity: 0;
+  }
+}

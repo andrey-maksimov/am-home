@@ -1,0 +1,7 @@
+# Disallow all crawlers - this is a private site
+User-agent: *
+Disallow: /
+
+# Prevent indexing of all paths
+Disallow: /h/
+Disallow: /api/
