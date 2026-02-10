@@ -109,7 +109,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert into Supabase (published=false by default)
+    // Insert into Supabase (published=true for instant publishing)
+    console.log('Attempting to insert entry:', { sanitizedName, sanitizedPhone, sanitizedMessage, photoUrl });
+    
     const { data: entry, error } = await supabaseAdmin
       .from('guestbook_entries')
       .insert({
@@ -117,18 +119,24 @@ export async function POST(request: NextRequest) {
         phone: sanitizedPhone,
         message: sanitizedMessage,
         photo_url: photoUrl,
-        published: false,
+        published: true,
       })
       .select('id, name, phone, message, photo_url, created_at')
       .single();
 
     if (error) {
       console.error('Failed to insert guestbook entry:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       return NextResponse.json(
-        { message: 'Failed to submit message. Please try again.' },
+        { 
+          message: 'Failed to submit message. Database error.',
+          error: JSON.parse(JSON.stringify(error)),
+        },
         { status: 500 }
       );
     }
+    
+    console.log('Entry inserted successfully:', entry);
 
     // Send Telegram notification with inline keyboard
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -148,17 +156,17 @@ export async function POST(request: NextRequest) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
-            text: telegramMessage,
+            text: telegramMessage + `\n\n✅ *Published instantly* - Visible at: https://a-m.ae/h/guestbook`,
             parse_mode: 'Markdown',
             reply_markup: {
               inline_keyboard: [
                 [
                   {
-                    text: 'Publish',
-                    callback_data: `publish_${entry.id}`,
+                    text: '✅ Keep',
+                    callback_data: `keep_${entry.id}`,
                   },
                   {
-                    text: 'Delete',
+                    text: '🗑️ Delete',
                     callback_data: `delete_${entry.id}`,
                   },
                 ],
@@ -196,7 +204,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Message submitted successfully. It will be reviewed before publishing.',
+      message: 'Your message is live!',
+      entryId: entry.id,
     });
 
   } catch (error) {

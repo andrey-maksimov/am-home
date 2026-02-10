@@ -19,6 +19,7 @@ export default function LeaveMessagePage() {
   const [submitStatus, setSubmitStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -28,12 +29,32 @@ export default function LeaveMessagePage() {
   });
 
   useEffect(() => {
-    // Fetch latest guestbook entries
-    fetch('/api/guestbook/list?limit=5')
-      .then(res => res.json())
-      .then(data => setEntries(Array.isArray(data) ? data : []))
-      .catch(err => console.error('Failed to fetch entries:', err))
-      .finally(() => setLoading(false));
+    // Fetch latest guestbook entries with cache busting
+    const fetchEntries = async () => {
+      try {
+        const response = await fetch('/api/guestbook/list?limit=5&t=' + Date.now(), {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+        });
+        const data = await response.json();
+        setEntries(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to fetch entries:', err);
+        setEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchEntries();
+    
+    // Auto-refresh every 5 seconds
+    const interval = setInterval(fetchEntries, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,10 +114,15 @@ export default function LeaveMessagePage() {
       if (response.ok) {
         setSubmitStatus({ 
           type: 'success', 
-          message: 'Thank you for your message. It will be reviewed before publishing.' 
+          message: 'Your message is live! Redirecting to guestbook...' 
         });
         setFormData({ name: '', phone: '', message: '' });
         removePhoto();
+        
+        // Redirect to guestbook with the new entry ID after a short delay
+        setTimeout(() => {
+          window.location.href = `/h/guestbook?highlight=${data.entryId}`;
+        }, 1500);
       } else {
         setSubmitStatus({ type: 'error', message: data.message || 'Failed to submit message.' });
       }
@@ -110,6 +136,30 @@ export default function LeaveMessagePage() {
   return (
     <PageShell title="Leave a message">
       <div className="space-y-6">
+        {/* Photo Lightbox Modal */}
+        {selectedPhoto && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <div className="relative max-w-4xl w-full">
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 text-2xl"
+              >
+                ✕ Close
+              </button>
+              <img
+                src={selectedPhoto.url}
+                alt={selectedPhoto.name}
+                className="w-full h-auto rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <p className="text-white text-center mt-4">{selectedPhoto.name}</p>
+            </div>
+          </div>
+        )}
+        
         {/* Form */}
         <Card>
           <h3 className="text-xl font-semibold mb-4 text-space-glow">Share your thoughts</h3>
@@ -229,11 +279,17 @@ export default function LeaveMessagePage() {
                 <Card key={entry.id}>
                   <div className="flex items-start gap-3">
                     {entry.photo_url ? (
-                      <img
-                        src={entry.photo_url}
-                        alt={entry.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
+                      <div className="relative group">
+                        <img
+                          src={entry.photo_url}
+                          alt={entry.name}
+                          className="w-10 h-10 rounded-full object-cover cursor-pointer transition-transform hover:scale-110"
+                          onClick={() => setSelectedPhoto({ url: entry.photo_url!, name: entry.name })}
+                        />
+                        <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs pointer-events-none">
+                          👁
+                        </div>
+                      </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-space-purple to-space-blue flex items-center justify-center text-xl">
                         {entry.name.charAt(0).toUpperCase()}

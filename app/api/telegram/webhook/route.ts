@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
-      // Handle publish action
+      // Handle publish action (for old pending entries)
       if (data.startsWith('publish_')) {
         const entryId = data.substring(8);
         
@@ -163,6 +163,31 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
+      // Handle keep action (entry is already published)
+      if (data.startsWith('keep_')) {
+        const entryId = data.substring(5);
+        
+        const { data: entry, error } = await supabaseAdmin
+          .from('guestbook_entries')
+          .select('name, message')
+          .eq('id', entryId)
+          .single();
+
+        if (error || !entry) {
+          await answerCallbackQuery(callbackQuery.id, 'Entry not found');
+        } else {
+          // Remove buttons after action
+          await editMessageReplyMarkup(chatId, messageId, { inline_keyboard: [] });
+          
+          await answerCallbackQuery(callbackQuery.id, 'Kept');
+          await sendTelegramReply(
+            chatId,
+            `Entry kept.\n\nFrom: ${entry.name}\nMessage: "${entry.message.slice(0, 100)}${entry.message.length > 100 ? '...' : ''}"`
+          );
+        }
+        return NextResponse.json({ ok: true });
+      }
+
       // Handle delete action
       if (data.startsWith('delete_')) {
         const entryId = data.substring(7);
@@ -183,6 +208,32 @@ export async function POST(request: NextRequest) {
           await answerCallbackQuery(callbackQuery.id, 'Deleted');
           await sendTelegramReply(chatId, `Entry deleted.\n\nFrom: ${entry.name}`);
         }
+        return NextResponse.json({ ok: true });
+      }
+
+      // Handle nuke confirmation
+      if (data === 'confirm_nuke') {
+        const { error } = await supabaseAdmin
+          .from('guestbook_entries')
+          .delete()
+          .neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (error) {
+          await answerCallbackQuery(callbackQuery.id, 'Failed to delete');
+          await sendTelegramReply(chatId, `Failed to delete all entries: ${error.message}`);
+        } else {
+          await editMessageReplyMarkup(chatId, messageId, { inline_keyboard: [] });
+          await answerCallbackQuery(callbackQuery.id, 'All deleted');
+          await sendTelegramReply(chatId, 'All guestbook entries have been deleted.');
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      // Handle nuke cancellation
+      if (data === 'cancel_nuke') {
+        await editMessageReplyMarkup(chatId, messageId, { inline_keyboard: [] });
+        await answerCallbackQuery(callbackQuery.id, 'Cancelled');
+        await sendTelegramReply(chatId, 'Deletion cancelled.');
         return NextResponse.json({ ok: true });
       }
 
@@ -293,76 +344,97 @@ export async function POST(request: NextRequest) {
         `*Available Commands:*\n` +
         `/status <message>` + ` - Update homepage banner\n` +
         `/current` + ` - View current status\n` +
-        `/pending` + ` - View pending guestbook entries\n` +
-        `/publish <id>` + ` - Publish a guestbook entry\n` +
+        `/list` + ` - List all guestbook entries\n` +
         `/delete <id>` + ` - Delete a guestbook entry\n` +
+        `/nukeall` + ` - Delete ALL guestbook entries\n` +
         `/help` + ` - Show this message\n\n` +
         `*Status Message Rules:*\n` +
         `• Maximum 250 characters\n` +
         `• HTML tags will be removed\n\n` +
+        `*Guestbook Notes:*\n` +
+        `• Messages are published instantly\n` +
+        `• Use /list to view and delete entries\n\n` +
         `*Examples:*\n` +
         `/status Welcome to our home. We're here all weekend.\n` +
         `/status Currently away, back on Monday.\n` +
-        `/publish 12345`;
+        `/delete 12345`;
 
       await sendTelegramReply(chatId, helpText, messageId);
       return NextResponse.json({ ok: true });
     }
 
-    // Command: /pending - List pending guestbook entries
-    if (text === '/pending') {
+    // Command: /list - List all guestbook entries with management buttons
+    if (text === '/list') {
       const { data, error } = await supabaseAdmin
         .from('guestbook_entries')
-        .select('id, name, phone, message, created_at')
-        .eq('published', false)
+        .select('id, name, phone, message, created_at, photo_url, published')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(50);
 
       if (error) {
-        await sendTelegramReply(chatId, 'Failed to fetch pending entries.', messageId);
+        await sendTelegramReply(chatId, 'Failed to fetch entries.', messageId);
       } else if (!data || data.length === 0) {
-        await sendTelegramReply(chatId, 'No pending entries.', messageId);
+        await sendTelegramReply(chatId, 'No entries in the guestbook.', messageId);
       } else {
-        let response = `*Pending Guestbook Entries (${data.length}):*\n\n`;
-        data.forEach((entry, index) => {
-          const date = new Date(entry.created_at).toLocaleDateString();
-          response += `${index + 1}. ${entry.name}${entry.phone ? ` (${entry.phone})` : ''}\n`;
-          response += `   "${entry.message.slice(0, 100)}${entry.message.length > 100 ? '...' : ''}"\n`;
-          response += `   Date: ${date} | ID: ${entry.id}\n`;
-          response += `   /publish ${entry.id} | /delete ${entry.id}\n\n`;
-        });
-        await sendTelegramReply(chatId, response, messageId);
-      }
-      return NextResponse.json({ ok: true });
-    }
-
-    // Command: /publish <id> - Publish a guestbook entry
-    if (text.startsWith('/publish ')) {
-      const entryId = text.substring(9).trim();
-      
-      if (!entryId) {
-        await sendTelegramReply(chatId, 'Please provide an entry ID.\n\nExample: /publish 12345', messageId);
-        return NextResponse.json({ ok: true });
-      }
-
-      const { data, error } = await supabaseAdmin
-        .from('guestbook_entries')
-        .update({ published: true })
-        .eq('id', entryId)
-        .select('name, message')
-        .single();
-
-      if (error || !data) {
-        await sendTelegramReply(chatId, `Failed to publish entry. Entry ID ${entryId} not found.`, messageId);
-      } else {
+        // Count published vs unpublished
+        const publishedCount = data.filter(e => e.published).length;
+        const unpublishedCount = data.length - publishedCount;
+        
+        // Send a summary message
         await sendTelegramReply(
-          chatId,
-          `Entry published.\n\nFrom: ${data.name}\nMessage: "${data.message.slice(0, 100)}${data.message.length > 100 ? '...' : ''}"\n\nNow visible at: https://a-m.ae/h/guestbook`,
+          chatId, 
+          `Found ${data.length} total ${data.length === 1 ? 'entry' : 'entries'}\n` +
+          `Published: ${publishedCount} | Unpublished: ${unpublishedCount}`,
           messageId
         );
+        
+        // Send each entry as a separate message with inline buttons
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        for (const entry of data) {
+          const date = new Date(entry.created_at).toLocaleString('en-US', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          });
+          const status = entry.published ? 'Published' : 'Unpublished';
+          const shortId = entry.id.split('-')[0];
+          
+          const entryMessage = 
+            `${status}\n` +
+            `*From:* ${entry.name}\n` +
+            (entry.phone ? `*Phone:* ${entry.phone}\n` : '') +
+            (entry.photo_url ? `*Photo:* [View](${entry.photo_url})\n` : '') +
+            `*Date:* ${date}\n` +
+            `*ID:* \`${shortId}\`\n\n` +
+            `*Message:*\n"${entry.message}"`;
+
+          try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: chatId,
+                text: entryMessage,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      {
+                        text: 'Delete',
+                        callback_data: `delete_${entry.id}`,
+                      },
+                    ],
+                  ],
+                },
+              }),
+            });
+          } catch (error) {
+            console.error('Failed to send entry:', error);
+          }
+        }
       }
       return NextResponse.json({ ok: true });
     }
+
 
     // Command: /delete <id> - Delete a guestbook entry
     if (text.startsWith('/delete ')) {
@@ -384,6 +456,57 @@ export async function POST(request: NextRequest) {
         await sendTelegramReply(chatId, `Failed to delete entry. Entry ID ${entryId} not found.`, messageId);
       } else {
         await sendTelegramReply(chatId, `Entry deleted.\n\nFrom: ${data.name}`, messageId);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // Command: /nukeall - Delete all guestbook entries (with confirmation)
+    if (text === '/nukeall') {
+      // First, get count of entries
+      const { count, error } = await supabaseAdmin
+        .from('guestbook_entries')
+        .select('id', { count: 'exact', head: true });
+
+      if (error) {
+        await sendTelegramReply(chatId, 'Failed to count entries.', messageId);
+        return NextResponse.json({ ok: true });
+      }
+
+      if (count === 0) {
+        await sendTelegramReply(chatId, 'No entries to delete.', messageId);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Send confirmation message with buttons
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      try {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `*WARNING*\n\nThis will permanently delete ALL ${count} guestbook ${count === 1 ? 'entry' : 'entries'}.\n\nThis action cannot be undone.\n\nAre you sure?`,
+            parse_mode: 'Markdown',
+            reply_to_message_id: messageId,
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: 'Cancel',
+                    callback_data: 'cancel_nuke',
+                  },
+                  {
+                    text: 'Delete All',
+                    callback_data: 'confirm_nuke',
+                  },
+                ],
+              ],
+            },
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to send confirmation:', error);
+        await sendTelegramReply(chatId, 'Failed to send confirmation message.', messageId);
       }
       return NextResponse.json({ ok: true });
     }

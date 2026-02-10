@@ -83,6 +83,9 @@ TELEGRAM_BOT_TOKEN=your-bot-token
 TELEGRAM_CHAT_ID=your-chat-id
 TELEGRAM_WEBHOOK_SECRET=generate-a-random-string
 
+# Cron Job Security (for keep-alive endpoint)
+CRON_SECRET=generate-a-random-string
+
 # Notion redirect URL (optional override)
 NOTION_PAGE_URL=https://amoffice.notion.site/Andrey-Maksimov-3930e83e68884fbd9da04dcd8dbadab6
 ```
@@ -143,6 +146,21 @@ Once your bot webhook is configured, you can use:
 2. **Privacy:** IP addresses are hashed (SHA-256) before storage
 
 3. **Rate Limiting:** In-memory store (for production, consider Redis)
+
+## ⏰ Supabase Keep-Alive
+
+To prevent Supabase free-tier projects from pausing after 7 days of inactivity, a Vercel Cron job automatically pings the database every 5 days:
+
+- **Endpoint:** `/api/keep-alive`
+- **Schedule:** Every 5 days (at midnight UTC)
+- **Security:** Protected by `CRON_SECRET` environment variable
+
+The cron job performs a simple database query to keep the project active without upgrading to Pro.
+
+**Setup in Vercel:**
+1. Add `CRON_SECRET` to your environment variables (generate a random string)
+2. The cron job is automatically configured via `vercel.json`
+3. Check Vercel Dashboard > Cron Jobs to verify it's running
 
 ## 🔒 SEO Hiding
 

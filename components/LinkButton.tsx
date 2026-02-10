@@ -7,6 +7,7 @@ interface LinkButtonProps {
   icon?: ReactNode;
   variant?: 'primary' | 'secondary';
   external?: boolean;
+  disabled?: boolean;
 }
 
 export default function LinkButton({ 
@@ -14,21 +15,37 @@ export default function LinkButton({
   children, 
   icon, 
   variant = 'primary',
-  external = false 
+  external = false,
+  disabled = false
 }: LinkButtonProps) {
-  const baseClasses = "block w-full px-6 py-4 rounded-xl font-medium text-center transition-all duration-300 glow-button";
+  const baseClasses = "block w-full px-6 py-4 rounded-xl font-medium text-center transition-all duration-300";
   const variantClasses = variant === 'primary' 
     ? "bg-gradient-to-r from-space-purple to-space-blue text-white"
     : "bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm";
   
-  const classes = `${baseClasses} ${variantClasses}`;
+  const disabledClasses = disabled
+    ? "opacity-40 cursor-not-allowed"
+    : "glow-button";
+  
+  const classes = `${baseClasses} ${variantClasses} ${disabledClasses}`;
   
   const content = (
     <span className="flex items-center justify-center gap-3">
       {icon && <span className="text-xl">{icon}</span>}
-      <span>{children}</span>
+      <span className="flex items-center gap-2">
+        {children}
+        {disabled && <span className="text-xs opacity-60">(Coming soon)</span>}
+      </span>
     </span>
   );
+  
+  if (disabled) {
+    return (
+      <div className={classes}>
+        {content}
+      </div>
+    );
+  }
   
   if (external) {
     return (

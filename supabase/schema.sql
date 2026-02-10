@@ -29,6 +29,8 @@ CREATE INDEX IF NOT EXISTS idx_scan_events_created_at ON scan_events(created_at 
 
 -- Table: guestbook_entries
 -- Purpose: Store messages and photos from guests (Phase B implementation)
+-- Note: Messages are published instantly (published=TRUE by default) for immediate "wow moment"
+-- Post-moderation via Telegram bot allows keeping or deleting entries after publication
 CREATE TABLE IF NOT EXISTS guestbook_entries (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -36,7 +38,7 @@ CREATE TABLE IF NOT EXISTS guestbook_entries (
   phone TEXT,
   message TEXT NOT NULL,
   photo_url TEXT,
-  published BOOLEAN DEFAULT FALSE
+  published BOOLEAN DEFAULT TRUE
 );
 
 -- Index for published entries
