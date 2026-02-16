@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     const results = await Promise.allSettled(queries);
     
     const errors = results
-      .filter((r): r is PromiseRejectedReason => r.status === 'rejected')
+      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       .map(r => r.reason);
 
     if (errors.length > 0) {
