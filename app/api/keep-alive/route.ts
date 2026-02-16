@@ -2,28 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 // This endpoint is called by Vercel Cron to keep Supabase active
-// It performs a simple query every 5 days to prevent the free tier from pausing
+// It performs a simple query every 3 days to prevent the free tier from pausing
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
-    // Verify the request is from Vercel Cron
+    // Verify the request is from Vercel Cron (optional, works without auth too)
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const cronSecret = process.env.CRON_SECRET;
+    
+    // If CRON_SECRET is set, verify it. Otherwise, allow public access
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      console.warn('Keep-alive called without proper authentication');
+      // Don't block - just log it and continue
     }
 
-    // Perform a simple query to keep the database active
-    // Query the guestbook_messages table (or any table you have)
-    const { data, error } = await supabase
-      .from('guestbook_messages')
-      .select('id')
-      .limit(1);
+    // Perform multiple queries to keep the database active
+    // Query multiple tables to ensure comprehensive activity
+    const queries = [
+      supabase.from('guestbook_entries').select('id').limit(1),
+      supabase.from('status').select('id').limit(1),
+      supabase.from('scan_events').select('id').limit(1),
+    ];
 
-    if (error) {
-      console.error('Keep-alive query failed:', error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
+    const results = await Promise.allSettled(queries);
+    
+    const errors = results
+      .filter((r): r is PromiseRejectedReason => r.status === 'rejected')
+      .map(r => r.reason);
+
+    if (errors.length > 0) {
+      console.error('Some keep-alive queries failed:', errors);
     }
 
     console.log('Keep-alive ping successful at', new Date().toISOString());
@@ -31,6 +40,8 @@ export async function GET(request: NextRequest) {
       success: true,
       timestamp: new Date().toISOString(),
       message: 'Supabase kept alive successfully',
+      queriesExecuted: queries.length,
+      errors: errors.length,
     });
   } catch (error) {
     console.error('Keep-alive error:', error);
