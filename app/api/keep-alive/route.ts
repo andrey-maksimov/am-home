@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 // This endpoint is called by Vercel Cron to keep Supabase active
 // It performs a simple query every 3 days to prevent the free tier from pausing
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   try {
