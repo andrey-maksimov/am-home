@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 // This endpoint is called by Vercel Cron to keep Supabase active
-// It performs a simple query every 3 days to prevent the free tier from pausing
+// It performs writes every 12 hours to prevent the free tier from pausing
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
@@ -18,8 +18,17 @@ export async function GET(request: NextRequest) {
       // Don't block - just log it and continue
     }
 
-    // Perform multiple queries to keep the database active
-    // Query multiple tables to ensure comprehensive activity
+    // IMPORTANT: Perform WRITE operations, not just reads
+    // Supabase free tier monitors write activity more than reads
+    
+    // 1. Insert a ping record (write operation)
+    const { data: pingData, error: pingError } = await supabase
+      .from('keep_alive_pings')
+      .insert({ source: 'vercel-cron' })
+      .select()
+      .single();
+
+    // 2. Perform read queries on other tables to ensure comprehensive activity
     const queries = [
       supabase.from('guestbook_entries').select('id').limit(1),
       supabase.from('status').select('id').limit(1),
@@ -32,22 +41,34 @@ export async function GET(request: NextRequest) {
       .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       .map(r => r.reason);
 
+    if (pingError) {
+      console.error('Keep-alive ping insertion failed:', pingError);
+      errors.push(pingError);
+    }
+
     if (errors.length > 0) {
       console.error('Some keep-alive queries failed:', errors);
     }
 
-    console.log('Keep-alive ping successful at', new Date().toISOString());
+    const timestamp = new Date().toISOString();
+    console.log('Keep-alive ping successful at', timestamp);
+    
     return NextResponse.json({
       success: true,
-      timestamp: new Date().toISOString(),
+      timestamp,
       message: 'Supabase kept alive successfully',
-      queriesExecuted: queries.length,
+      pingId: pingData?.id,
+      queriesExecuted: queries.length + 1, // +1 for the insert
       errors: errors.length,
     });
   } catch (error) {
     console.error('Keep-alive error:', error);
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { 
+        success: false, 
+        error: 'Internal server error',
+        timestamp: new Date().toISOString(),
+      },
       { status: 500 }
     );
   }
